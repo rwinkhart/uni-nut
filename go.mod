@@ -1,5 +1,3 @@
-module honnef.co/go/nut
+module github.com/rwinkhart/uni-nut
 
-go 1.14
-
-require github.com/prometheus/client_golang v1.7.1
+go 1.25.2

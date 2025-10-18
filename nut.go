@@ -78,7 +78,11 @@ func (c *Client) GetVar(upsID, varName string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	value := strings.Trim(strings.Join(strings.Split(l, " ")[3:], " "), "\"")
+	lSplit := strings.Split(l, " ")
+	if len(lSplit) < 4 {
+		return "", fmt.Errorf("invalid response to GET VAR; check your UPS ID")
+	}
+	value := strings.Trim(strings.Join(lSplit[3:], " "), "\"")
 	return value, nil
 }
 

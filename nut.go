@@ -36,6 +36,7 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
+// GetListVar updates NutKeyValMap with the current status of all variables from <upsID>.
 func (c *Client) GetListVar(upsID string) error {
 	cmd := "LIST VAR \"" + upsID + "\""
 	if err := c.write(cmd); err != nil {
@@ -50,13 +51,19 @@ func (c *Client) GetListVar(upsID string) error {
 		return fmt.Errorf("pre-loop error: expected %q, got %q", expected, l)
 	}
 
+outer:
 	for {
-		l, _ := c.read()
-		if !strings.HasPrefix(l, "VAR \""+upsID+"\" ") {
-			break
+		l, err := c.read()
+		if err != nil {
+			return fmt.Errorf("in-loop error: %w", err)
 		}
 		lSplit := strings.Split(l, " ")
-		NutKeyValMap[strings.Trim(lSplit[2], "\"")] = strings.Trim(strings.Join(lSplit[3:], " "), "\"")
+		switch lSplit[0] {
+		case "VAR":
+			NutKeyValMap[strings.Trim(lSplit[2], "\"")] = strings.Trim(strings.Join(lSplit[3:], " "), "\"")
+		default:
+			break outer
+		}
 	}
 	return nil
 }

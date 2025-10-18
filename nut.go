@@ -36,8 +36,8 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-// GetListVar updates NutKeyValMap with the current status of all variables from <upsID>.
-func (c *Client) GetListVar(upsID string) error {
+// ListVar updates NutKeyValMap with the current status of all variables from <upsID>.
+func (c *Client) ListVar(upsID string) error {
 	cmd := "LIST VAR \"" + upsID + "\""
 	if err := c.write(cmd); err != nil {
 		return err
@@ -66,6 +66,20 @@ outer:
 		}
 	}
 	return nil
+}
+
+// GetVar returns the value of the specified variable for <upsID>.
+func (c *Client) GetVar(upsID, varName string) (string, error) {
+	cmd := "GET VAR \"" + upsID + "\" \"" + varName + "\""
+	if err := c.write(cmd); err != nil {
+		return "", err
+	}
+	l, err := c.read()
+	if err != nil {
+		return "", err
+	}
+	value := strings.Trim(strings.Join(strings.Split(l, " ")[3:], " "), "\"")
+	return value, nil
 }
 
 // newClient wraps an existing net.Conn.

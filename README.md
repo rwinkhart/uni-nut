@@ -5,7 +5,7 @@ Ubiquiti UPS units seem to use a somewhat non-standard format for responses from
 
 ## Usage
 1. Enable the NUT server on your Ubiquiti UniFi-connected UPS unit.
-    - Do **NOT** enable the "Login Credential" option!
+    - The "Login Credential" setting is optional; if enabled, be sure to use the .Authenticate() method immediately after dialing!
 2. This module can now be used to get variables from your UPS's NUT server as follows:
 ```go
 package main
@@ -18,12 +18,29 @@ import (
 
 func main() {
 	host := "IP:PORT"
-	upsID := "UPS-ID"
+	username := "username"
+	password := "password"
+	
+	// connect to NUT server
 	client, err := nut.Dial(host)
 	if err != nil {
 		panic(err)
 	}
-	err = client.GetListVar(upsID)
+	
+	// authenticate (if "Login Credential" is enabled on the NUT server)
+	err = client.Authenticate(username, password)
+	if err != nil {
+		panic(err)
+	}
+	
+	// auto-detect UPS ID
+	upsID, err := client.Identify()
+	if err != nil {
+		panic(err)
+	}
+	
+	// list all variables from your UPS
+	err = client.ListVar(upsID)
 	if err != nil {
 		panic(err)
 	}
@@ -32,3 +49,5 @@ func main() {
 	}
 }
 ```
+
+This module also features a .GetVar() method for retrieving the value of only one variable.

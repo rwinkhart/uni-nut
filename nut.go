@@ -36,6 +36,36 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
+// Authenticate logs into credential-protected sessions.
+// If authentication is enabled on your NUT server, run
+// this immediately after dialing.
+func (c *Client) Authenticate(username, password string) error {
+	var err error
+	if err = c.write("USERNAME " + username + "\nPASSWORD " + password); err != nil {
+		return err
+	}
+	_, err = c.clearBuffer("OK L", "")
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// Identify detects the ID of the connected UPS.
+// This only works when there is only one UPS per
+// NUT server, which is the case with UniFi UPS units.
+func (c *Client) Identify() (string, error) {
+	if err := c.write("LIST UPS"); err != nil {
+		return "", err
+	}
+	l, err := c.clearBuffer("END", "UPS")
+	if err != nil {
+		return "", err
+	}
+
+	return strings.Split(l, " ")[1], nil
+}
+
 // ListVar updates NutKeyValMap with the current status of all variables from <upsID>.
 func (c *Client) ListVar(upsID string) error {
 	cmd := "LIST VAR \"" + upsID + "\""
@@ -70,8 +100,7 @@ outer:
 
 // GetVar returns the value of the specified variable for <upsID>.
 func (c *Client) GetVar(upsID, varName string) (string, error) {
-	cmd := "GET VAR \"" + upsID + "\" \"" + varName + "\""
-	if err := c.write(cmd); err != nil {
+	if err := c.write("GET VAR \"" + upsID + "\" \"" + varName + "\""); err != nil {
 		return "", err
 	}
 	l, err := c.read()
@@ -86,7 +115,6 @@ func (c *Client) GetVar(upsID, varName string) (string, error) {
 	return value, nil
 }
 
-// newClient wraps an existing net.Conn.
 func newClient(conn net.Conn) *Client {
 	return &Client{conn, bufio.NewReader(conn)}
 }
@@ -105,4 +133,20 @@ func (c *Client) read() (string, error) {
 		l = l[:len(l)-1]
 	}
 	return l, nil
+}
+
+func (c *Client) clearBuffer(tillPrefix, storePrefix string) (string, error) {
+	var stored string
+	for {
+		l, err := c.read()
+		if err != nil {
+			return "", err
+		}
+		if storePrefix != "" && strings.HasPrefix(l, storePrefix) {
+			stored = l
+		} else if strings.HasPrefix(l, tillPrefix) {
+			break
+		}
+	}
+	return stored, nil
 }

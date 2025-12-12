@@ -34,13 +34,13 @@ func main() {
 	}
 	
 	// auto-detect UPS ID
-	upsID, err := client.Identify()
+	err = client.AutomaticallySetID()
 	if err != nil {
 		panic(err)
 	}
 	
 	// list all variables from your UPS
-	err = client.ListVar(upsID)
+	err = client.ListVar()
 	if err != nil {
 		panic(err)
 	}

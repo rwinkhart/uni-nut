@@ -9,8 +9,10 @@ import (
 
 // A Client wraps a connection to a NUT server.
 type Client struct {
-	conn net.Conn
-	br   *bufio.Reader
+	conn        net.Conn
+	br          *bufio.Reader
+	upsID       string
+	upsIDLength int
 }
 
 // Global map to be updated by GetListVar and read by the importing program.
@@ -51,24 +53,33 @@ func (c *Client) Authenticate(username, password string) error {
 	return nil
 }
 
-// Identify detects the ID of the connected UPS.
+// AutomaticallySetID detects the ID of the connected UPS.
 // This only works when there is only one UPS per
 // NUT server, which is the case with UniFi UPS units.
-func (c *Client) Identify() (string, error) {
+func (c *Client) AutomaticallySetID() error {
 	if err := c.write("LIST UPS"); err != nil {
-		return "", err
+		return err
 	}
 	l, err := c.clearBuffer("END", "UPS")
 	if err != nil {
-		return "", err
+		return err
 	}
-
-	return strings.Split(l, " ")[1], nil
+	lSplit := strings.Split(l, " ")
+	c.upsID = strings.Join(lSplit[1:len(lSplit)-2], " ")
+	c.upsIDLength = len(strings.Split(c.upsID, " "))
+	return nil
 }
 
-// ListVar updates NutKeyValMap with the current status of all variables from <upsID>.
-func (c *Client) ListVar(upsID string) error {
-	cmd := "LIST VAR \"" + upsID + "\""
+// ManuallySetID allows the user to specify the UPS ID
+// manually if auto-detection is not desired.
+func (c *Client) ManuallySetID(upsID string) {
+	c.upsID = upsID
+	c.upsIDLength = len(strings.Split(upsID, " "))
+}
+
+// ListVar updates NutKeyValMap with the current status of all variables from the target UPS.
+func (c *Client) ListVar() error {
+	cmd := "LIST VAR \"" + c.upsID + "\""
 	if err := c.write(cmd); err != nil {
 		return err
 	}
@@ -76,9 +87,9 @@ func (c *Client) ListVar(upsID string) error {
 	if err != nil {
 		return err
 	}
-	expected := "BEGIN " + cmd
-	if l != expected {
-		return fmt.Errorf("pre-loop error: expected %q, got %q", expected, l)
+	expectedPrefix := "BEGIN LIST VAR"
+	if !strings.HasPrefix(l, expectedPrefix) {
+		return fmt.Errorf("pre-loop error: expected prefix %q, got line %q", expectedPrefix, l)
 	}
 
 outer:
@@ -90,7 +101,7 @@ outer:
 		lSplit := strings.Split(l, " ")
 		switch lSplit[0] {
 		case "VAR":
-			NutKeyValMap[strings.Trim(lSplit[2], "\"")] = strings.Trim(strings.Join(lSplit[3:], " "), "\"")
+			NutKeyValMap[lSplit[1+c.upsIDLength]] = strings.Trim(strings.Join(lSplit[2+c.upsIDLength:], " "), "\"")
 		default:
 			break outer
 		}
@@ -98,9 +109,9 @@ outer:
 	return nil
 }
 
-// GetVar returns the value of the specified variable for <upsID>.
-func (c *Client) GetVar(upsID, varName string) (string, error) {
-	if err := c.write("GET VAR \"" + upsID + "\" \"" + varName + "\""); err != nil {
+// GetVar returns the value of the specified variable for the target UPS.
+func (c *Client) GetVar(varName string) (string, error) {
+	if err := c.write("GET VAR \"" + c.upsID + "\" \"" + varName + "\""); err != nil {
 		return "", err
 	}
 	l, err := c.read()
@@ -111,12 +122,12 @@ func (c *Client) GetVar(upsID, varName string) (string, error) {
 	if len(lSplit) < 4 {
 		return "", fmt.Errorf("invalid response to GET VAR; check your UPS ID")
 	}
-	value := strings.Trim(strings.Join(lSplit[3:], " "), "\"")
+	value := strings.Trim(strings.Join(lSplit[2+c.upsIDLength:], " "), "\"")
 	return value, nil
 }
 
 func newClient(conn net.Conn) *Client {
-	return &Client{conn, bufio.NewReader(conn)}
+	return &Client{conn, bufio.NewReader(conn), "", 0}
 }
 
 func (c *Client) write(s string) error {

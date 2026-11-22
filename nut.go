@@ -38,21 +38,6 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-// Authenticate logs into credential-protected sessions.
-// If authentication is enabled on your NUT server, run
-// this immediately after dialing.
-func (c *Client) Authenticate(username, password string) error {
-	var err error
-	if err = c.write("USERNAME " + username + "\nPASSWORD " + password); err != nil {
-		return err
-	}
-	_, err = c.clearBuffer("OK L", "")
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 // AutomaticallySetID detects the ID of the connected UPS.
 // This only works when there is only one UPS per
 // NUT server, which is the case with UniFi UPS units.
